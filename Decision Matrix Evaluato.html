@@ -1,0 +1,839 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Opportunity Decision Matrix (Dynamic Weighting)</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom styles for better aesthetics and readability */
+        :root {
+            --primary: #4f46e5;
+            --secondary: #6366f1;
+            --light: #eef2ff;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #f7f9fb 0%, #eef2ff 100%);
+            color: #1f2937;
+            min-height: 100vh;
+        }
+        
+        /* Custom track style for range inputs - Weight sliders (indigo) */
+        input[type=range].weight-slider::-webkit-slider-runnable-track {
+            height: 8px;
+            cursor: pointer;
+            background: linear-gradient(to right, #c7d2fe 0%, #6366f1 100%);
+            border-radius: 4px;
+            transition: all 0.3s ease;
+        }
+        input[type=range].weight-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 20px;
+            width: 20px;
+            border-radius: 50%;
+            background: var(--primary);
+            cursor: pointer;
+            margin-top: -6px;
+            box-shadow: 0 2px 8px rgba(79, 70, 229, 0.4);
+            transition: all 0.2s ease;
+        }
+        input[type=range].weight-slider::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+            box-shadow: 0 3px 12px rgba(79, 70, 229, 0.6);
+        }
+        
+        /* Custom track style for range inputs - Score sliders (gray/teal) */
+        input[type=range].score-slider::-webkit-slider-runnable-track {
+            height: 8px;
+            cursor: pointer;
+            background: linear-gradient(to right, #d1d5db 0%, #14b8a6 100%);
+            border-radius: 4px;
+            transition: all 0.3s ease;
+        }
+        input[type=range].score-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 20px;
+            width: 20px;
+            border-radius: 50%;
+            background: #14b8a6;
+            cursor: pointer;
+            margin-top: -6px;
+            box-shadow: 0 2px 8px rgba(20, 184, 166, 0.4);
+            transition: all 0.2s ease;
+        }
+        input[type=range].score-slider::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+            box-shadow: 0 3px 12px rgba(20, 184, 166, 0.6);
+        }
+        
+        /* Firefox support */
+        input[type=range].weight-slider::-moz-range-track {
+            height: 8px;
+            background: linear-gradient(to right, #c7d2fe 0%, #6366f1 100%);
+            border-radius: 4px;
+        }
+        input[type=range].weight-slider::-moz-range-thumb {
+            height: 20px;
+            width: 20px;
+            border-radius: 50%;
+            background: var(--primary);
+            cursor: pointer;
+            border: none;
+            box-shadow: 0 2px 8px rgba(79, 70, 229, 0.4);
+        }
+        input[type=range].score-slider::-moz-range-track {
+            height: 8px;
+            background: linear-gradient(to right, #d1d5db 0%, #14b8a6 100%);
+            border-radius: 4px;
+        }
+        input[type=range].score-slider::-moz-range-thumb {
+            height: 20px;
+            width: 20px;
+            border-radius: 50%;
+            background: #14b8a6;
+            cursor: pointer;
+            border: none;
+            box-shadow: 0 2px 8px rgba(20, 184, 166, 0.4);
+        }
+        
+        /* Animation for new rows */
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .opportunity-row {
+            animation: slideIn 0.3s ease-out;
+        }
+        
+        /* Score preview badge */
+        .score-preview {
+            transition: all 0.3s ease;
+        }
+        .score-preview.high {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+        }
+        .score-preview.medium {
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+            color: white;
+        }
+        .score-preview.low {
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+            color: white;
+        }
+        
+        /* Progress bar for score visualization */
+        .score-progress {
+            height: 6px;
+            border-radius: 3px;
+            transition: width 0.5s ease;
+        }
+        
+        /* Hover effects */
+        .opportunity-row:hover {
+            background-color: #f9fafb !important;
+            transform: translateX(2px);
+            transition: all 0.2s ease;
+        }
+        
+        /* Pulse animation for top opportunity */
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.8;
+            }
+        }
+        
+        .top-opportunity {
+            animation: pulse 2s ease-in-out infinite;
+        }
+        
+        /* Tooltip styles */
+        .tooltip {
+            position: relative;
+            display: inline-block;
+        }
+        
+        .tooltip .tooltiptext {
+            visibility: hidden;
+            width: 200px;
+            background-color: #1f2937;
+            color: #fff;
+            text-align: center;
+            border-radius: 6px;
+            padding: 8px;
+            position: absolute;
+            z-index: 1000;
+            bottom: 125%;
+            left: 50%;
+            margin-left: -100px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            font-size: 12px;
+        }
+        
+        .tooltip:hover .tooltiptext {
+            visibility: visible;
+            opacity: 1;
+        }
+        
+        /* Smooth transitions */
+        * {
+            transition: background-color 0.2s ease, color 0.2s ease;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+
+    <div class="max-w-7xl mx-auto bg-white shadow-xl rounded-xl p-6 md:p-10 border border-indigo-100">
+        <!-- Introduction Section -->
+        <div id="intro-section">
+        <!-- Hero Section -->
+        <div class="text-center mb-8">
+            <h1 class="text-4xl md:text-5xl font-extrabold bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent mb-4">
+                Dynamic Opportunity Decision Matrix
+            </h1>
+            <p class="text-lg text-gray-600 max-w-3xl mx-auto">
+                Make data-driven decisions with a quantitative framework that calculates definitive scores for each opportunity
+            </p>
+        </div>
+
+        <!-- Formula Card -->
+        <div class="mb-8 p-6 bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 rounded-2xl border-2 border-indigo-200 shadow-lg">
+            <div class="flex items-center justify-center mb-4">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-indigo-600 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                </svg>
+                <h2 class="text-xl font-bold text-indigo-800">Calculation Formula</h2>
+            </div>
+            <div class="bg-white rounded-xl p-4 mb-3 border border-indigo-100">
+                <p class="text-center font-mono text-lg md:text-xl text-indigo-900 font-bold">
+                    Total Score = (W₁ × S₁) + (W₂ × S₂) + (W₃ × S₃) + (W₄ × S₄)
+                </p>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                <div class="flex items-start space-x-2">
+                    <span class="text-indigo-600 font-bold text-lg">W</span>
+                    <div>
+                        <strong class="text-gray-800">Weight (1-5):</strong>
+                        <span class="text-gray-600"> Importance of each factor</span>
+                    </div>
+                </div>
+                <div class="flex items-start space-x-2">
+                    <span class="text-teal-600 font-bold text-lg">S</span>
+                    <div>
+                        <strong class="text-gray-800">Score (1-10):</strong>
+                        <span class="text-gray-600"> Performance/match rating</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Key Concepts Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+            <!-- Weight Card -->
+            <div class="bg-gradient-to-br from-indigo-100 to-indigo-50 rounded-xl p-5 border-2 border-indigo-200 shadow-md hover:shadow-lg transition-all">
+                <div class="flex items-center mb-3">
+                    <div class="bg-indigo-600 rounded-lg p-2 mr-3">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                        </svg>
+                    </div>
+                    <h3 class="text-lg font-bold text-indigo-800">Weight (W)</h3>
+                </div>
+                <p class="text-sm text-gray-700 mb-2">
+                    <strong>Range: 1-5</strong> | Defines how <strong>important</strong> a factor is for this specific opportunity.
+                </p>
+                <div class="bg-white rounded-lg p-3 text-xs text-gray-600">
+                    <strong>Example:</strong> For Freelance Writing, Skill Weight = 5 (crucial). For Investing, Time Weight = 1 (irrelevant).
+                </div>
+            </div>
+
+            <!-- Score Card -->
+            <div class="bg-gradient-to-br from-teal-100 to-teal-50 rounded-xl p-5 border-2 border-teal-200 shadow-md hover:shadow-lg transition-all">
+                <div class="flex items-center mb-3">
+                    <div class="bg-teal-600 rounded-lg p-2 mr-3">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                        </svg>
+                    </div>
+                    <h3 class="text-lg font-bold text-teal-800">Score (S)</h3>
+                </div>
+                <p class="text-sm text-gray-700 mb-2">
+                    <strong>Range: 1-10</strong> | Rates how well <strong>you or the opportunity</strong> performs on this factor.
+                </p>
+                <div class="bg-white rounded-lg p-3 text-xs text-gray-600">
+                    <strong>Example:</strong> If you're skilled in writing, Freelance Writing Skill Score = 9. If you're inexperienced, Risk Score = 3.
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Start Guide -->
+        <div class="mb-8 bg-white rounded-xl p-6 border-2 border-gray-200 shadow-md">
+            <div class="flex items-center mb-4">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-purple-600 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+                <h2 class="text-xl font-bold text-gray-800">Quick Start Guide</h2>
+            </div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div class="flex flex-col items-center text-center p-4 bg-indigo-50 rounded-lg border border-indigo-200">
+                    <div class="bg-indigo-600 text-white rounded-full w-10 h-10 flex items-center justify-center font-bold text-lg mb-3">1</div>
+                    <h3 class="font-semibold text-gray-800 mb-2">Name It</h3>
+                    <p class="text-xs text-gray-600">Enter your opportunity name (e.g., "Starting a SaaS")</p>
+                </div>
+                
+                <div class="flex flex-col items-center text-center p-4 bg-purple-50 rounded-lg border border-purple-200">
+                    <div class="bg-purple-600 text-white rounded-full w-10 h-10 flex items-center justify-center font-bold text-lg mb-3">2</div>
+                    <h3 class="font-semibold text-gray-800 mb-2">Set Weight</h3>
+                    <p class="text-xs text-gray-600">Use <strong>top slider</strong> (W, 1-5) for importance</p>
+                </div>
+                
+                <div class="flex flex-col items-center text-center p-4 bg-pink-50 rounded-lg border border-pink-200">
+                    <div class="bg-pink-600 text-white rounded-full w-10 h-10 flex items-center justify-center font-bold text-lg mb-3">3</div>
+                    <h3 class="font-semibold text-gray-800 mb-2">Set Score</h3>
+                    <p class="text-xs text-gray-600">Use <strong>bottom slider</strong> (S, 1-10) for performance</p>
+                </div>
+                
+                <div class="flex flex-col items-center text-center p-4 bg-green-50 rounded-lg border border-green-200">
+                    <div class="bg-green-600 text-white rounded-full w-10 h-10 flex items-center justify-center font-bold text-lg mb-3">4</div>
+                    <h3 class="font-semibold text-gray-800 mb-2">Calculate</h3>
+                    <p class="text-xs text-gray-600">Click "Calculate" to see ranked results</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Factors Info - Collapsible -->
+        <details class="mb-8 bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl p-5 border border-gray-300 shadow-sm">
+            <summary class="cursor-pointer list-none flex items-center justify-between font-semibold text-gray-800 hover:text-indigo-600 transition-colors">
+                <div class="flex items-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span>About the 4 Factors</span>
+                </div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-500 transform transition-transform duration-200 details-icon" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+                </svg>
+            </summary>
+            
+            <div class="mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-3">
+                <div class="bg-white rounded-lg p-3 border border-gray-200">
+                    <h4 class="font-semibold text-sm text-gray-800 mb-1">🎯 Skill</h4>
+                    <p class="text-xs text-gray-600">Leverage your existing skills and expertise</p>
+                </div>
+                <div class="bg-white rounded-lg p-3 border border-gray-200">
+                    <h4 class="font-semibold text-sm text-gray-800 mb-1">⏰ Time</h4>
+                    <p class="text-xs text-gray-600">Time commitment required for success</p>
+                </div>
+                <div class="bg-white rounded-lg p-3 border border-gray-200">
+                    <h4 class="font-semibold text-sm text-gray-800 mb-1">❤️ Interest</h4>
+                    <p class="text-xs text-gray-600">How much you'll enjoy this opportunity</p>
+                </div>
+                <div class="bg-white rounded-lg p-3 border border-gray-200">
+                    <h4 class="font-semibold text-sm text-gray-800 mb-1">⚠️ Risk</h4>
+                    <p class="text-xs text-gray-600">Financial exposure and potential losses</p>
+                </div>
+            </div>
+        </details>
+        </div>
+        <!-- End Introduction Section -->
+
+        <!-- Step 2: Opportunity Scoring (O, W, and S) -->
+        <div id="opportunities-section" class="mb-10 p-6 bg-white rounded-lg border border-gray-200">
+            <h2 class="text-xl font-semibold text-gray-800 mb-4">Input: Opportunity, Weight (W), and Score (S)</h2>
+
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gradient-to-r from-indigo-50 to-purple-50">
+                        <tr>
+                            <th class="px-2 py-3 text-left text-xs font-semibold text-indigo-700 uppercase tracking-wider min-w-[150px] border-b-2 border-indigo-200">Opportunity Name</th>
+                            <th class="px-2 py-3 text-left text-xs font-semibold text-indigo-700 uppercase tracking-wider min-w-[150px] border-b-2 border-indigo-200">Skill (Leverage existing)</th>
+                            <th class="px-2 py-3 text-left text-xs font-semibold text-indigo-700 uppercase tracking-wider min-w-[150px] border-b-2 border-indigo-200">Time (Commitment needed)</th>
+                            <th class="px-2 py-3 text-left text-xs font-semibold text-indigo-700 uppercase tracking-wider min-w-[150px] border-b-2 border-indigo-200">Interest (Enjoyment factor)</th>
+                            <th class="px-2 py-3 text-left text-xs font-semibold text-indigo-700 uppercase tracking-wider min-w-[150px] border-b-2 border-indigo-200">Risk (Financial exposure)</th>
+                            <th class="px-2 py-3 text-left text-xs font-semibold text-indigo-700 uppercase tracking-wider border-b-2 border-indigo-200"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="opportunities-table-body" class="bg-white divide-y divide-gray-200">
+                        <!-- Opportunity rows will be inserted here -->
+                    </tbody>
+                </table>
+            </div>
+            
+            <button id="add-opportunity-btn" class="mt-4 w-full md:w-auto px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-semibold rounded-lg shadow-lg hover:shadow-xl hover:from-indigo-700 hover:to-purple-700 transition-all duration-200 transform hover:scale-105 flex items-center justify-center space-x-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" />
+                </svg>
+                <span>Add Opportunity</span>
+            </button>
+        </div>
+
+        <button id="calculate-scores-btn" class="mt-6 w-full px-8 py-4 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 text-white font-bold text-lg rounded-xl shadow-2xl hover:shadow-3xl hover:from-indigo-700 hover:via-purple-700 hover:to-pink-700 transition-all duration-300 transform hover:scale-[1.02] flex items-center justify-center space-x-3">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+            </svg>
+            <span>Calculate My Best Path</span>
+        </button>
+
+
+        <!-- Step 3: Calculation and Results -->
+        <div id="results-section" class="mt-10 p-6 bg-green-50 rounded-lg border border-green-200 hidden">
+            <h2 class="text-xl font-semibold text-green-700 mb-4 flex items-center">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Results: Calculated Opportunity Scores
+            </h2>
+
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-green-300">
+                    <thead>
+                        <tr class="bg-green-100">
+                            <th class="px-2 py-3 text-left text-sm font-bold text-green-700 uppercase tracking-wider rounded-tl-lg">Rank</th>
+                            <th class="px-2 py-3 text-left text-sm font-bold text-green-700 uppercase tracking-wider">Opportunity</th>
+                            <th class="px-2 py-3 text-left text-sm font-bold text-green-700 uppercase tracking-wider rounded-tr-lg">Total Score</th>
+                        </tr>
+                    </thead>
+                    <tbody id="results-table-body" class="bg-white divide-y divide-green-100">
+                        <!-- Results will be inserted here -->
+                    </tbody>
+                </table>
+            </div>
+
+            <button id="re-score-btn" class="mt-4 px-6 py-3 bg-gradient-to-r from-gray-500 to-gray-600 text-white font-semibold rounded-lg shadow-lg hover:shadow-xl hover:from-gray-600 hover:to-gray-700 transition-all duration-200 transform hover:scale-105 flex items-center justify-center space-x-2 mx-auto">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5l-7 7 7 7M18 5l-7 7 7 7" />
+                </svg>
+                <span>Go Back to Edit Scores</span>
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // Data structure to hold opportunities
+        let opportunities = [];
+        let opportunityCounter = 0;
+
+        /**
+         * The core Decision Matrix Formula (using dynamic W and S):
+         * Score = (W_Skill * S_Skill) + (W_Time * S_Time) + (W_Interest * S_Interest) + (W_Risk * S_Risk)
+         * @param {Object} opp - The full opportunity object containing dynamic weights and scores.
+         * @returns {number} The total calculated score.
+         */
+        function calculateOpportunityScore(opp) {
+            // Weights are opp.weights.w_skill, Scores are opp.scores.s_skill
+            const score = (opp.weights.w_skill * opp.scores.s_skill) +
+                          (opp.weights.w_time * opp.scores.s_time) +
+                          (opp.weights.w_interest * opp.scores.s_interest) +
+                          (opp.weights.w_risk * opp.scores.s_risk);
+            return score;
+        }
+
+        /**
+         * Gets the score category (high, medium, low) based on total score
+         * Max possible score is 5*10 + 5*10 + 5*10 + 5*10 = 200
+         */
+        function getScoreCategory(score) {
+            const maxScore = 200;
+            const percentage = (score / maxScore) * 100;
+            if (percentage >= 70) return 'high';
+            if (percentage >= 40) return 'medium';
+            return 'low';
+        }
+
+        /**
+         * Generates the HTML for a single opportunity row with W (1-5) and S (1-10) inputs.
+         * @param {Object} opp - The opportunity object.
+         * @returns {string} The HTML string for the table row.
+         */
+        function createOpportunityRow(opp) {
+            const currentScore = calculateOpportunityScore(opp);
+            const scoreCategory = getScoreCategory(currentScore);
+            
+            // Helper function to create the combined W and S input block for a factor
+            const createInputPair = (name, initialW, initialS) => `
+                <div class="flex flex-col space-y-2">
+                    <!-- Weight (W) Input (1-5) -->
+                    <div class="flex flex-col">
+                        <label class="text-xs font-medium text-gray-700 flex justify-between">
+                            <span class="tooltip">
+                                W (1-5)
+                                <span class="tooltiptext">Weight: Importance of this factor for this opportunity</span>
+                            </span>
+                            <span id="score_display_${opp.id}_w_${name}" class="font-bold text-indigo-700">${initialW}</span>
+                        </label>
+                        <input type="range" data-field="w_${name}" min="1" max="5" value="${initialW}" 
+                               class="weight-slider w-full h-2 rounded-lg appearance-none cursor-pointer" 
+                               oninput="updateOpportunityValue(${opp.id}, 'weights', 'w_${name}', this.value)">
+                    </div>
+                    <!-- Score (S) Input (1-10) -->
+                    <div class="flex flex-col">
+                        <label class="text-xs font-medium text-gray-700 flex justify-between">
+                            <span class="tooltip">
+                                S (1-10)
+                                <span class="tooltiptext">Score: How well you/opportunity performs on this factor</span>
+                            </span>
+                            <span id="score_display_${opp.id}_s_${name}" class="font-bold text-teal-700">${initialS}</span>
+                        </label>
+                        <input type="range" data-field="s_${name}" min="1" max="10" value="${initialS}" 
+                               class="score-slider w-full h-2 rounded-lg appearance-none cursor-pointer" 
+                               oninput="updateOpportunityValue(${opp.id}, 'scores', 's_${name}', this.value)">
+                    </div>
+                </div>
+            `;
+
+            return `
+                <tr id="opp_row_${opp.id}" class="opportunity-row hover:bg-gray-50 transition duration-100">
+                    <td class="px-2 py-4">
+                        <div class="flex flex-col space-y-2">
+                            <input type="text" value="${opp.name}" oninput="updateOpportunityName(${opp.id}, this.value)"
+                                   class="w-full text-sm font-medium text-gray-900 border border-gray-300 rounded-md p-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all" 
+                                   placeholder="e.g., Pet Sitting">
+                            <div class="flex items-center space-x-2">
+                                <span class="text-xs text-gray-500">Live Score:</span>
+                                <span id="live_score_${opp.id}" class="score-preview ${scoreCategory} px-2 py-1 rounded-full text-xs font-bold shadow-md">
+                                    ${currentScore}
+                                </span>
+                            </div>
+                            <div class="w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
+                                <div id="score_progress_${opp.id}" class="score-progress bg-gradient-to-r from-indigo-500 to-teal-500" 
+                                     style="width: ${(currentScore / 200) * 100}%"></div>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="px-2 py-4">${createInputPair('skill', opp.weights.w_skill, opp.scores.s_skill)}</td>
+                    <td class="px-2 py-4">${createInputPair('time', opp.weights.w_time, opp.scores.s_time)}</td>
+                    <td class="px-2 py-4">${createInputPair('interest', opp.weights.w_interest, opp.scores.s_interest)}</td>
+                    <td class="px-2 py-4">${createInputPair('risk', opp.weights.w_risk, opp.scores.s_risk)}</td>
+                    <td class="px-2 py-4 text-center">
+                        <button onclick="removeOpportunity(${opp.id})" 
+                                class="text-red-500 hover:text-red-700 hover:bg-red-50 p-2 rounded-lg transition duration-150 tooltip">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mx-auto" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 10-2 0v6a1 1 0 102 0V8z" clip-rule="evenodd" />
+                            </svg>
+                            <span class="tooltiptext">Remove this opportunity</span>
+                        </button>
+                    </td>
+                </tr>
+            `;
+        }
+        
+        /**
+         * Adds a new opportunity to the data model and renders the row.
+         */
+        function addOpportunity(name = 'New Opportunity', weights = { w_skill: 3, w_time: 3, w_interest: 3, w_risk: 3 }, scores = { s_skill: 5, s_time: 5, s_interest: 5, s_risk: 5 }) {
+            const newOpportunity = {
+                id: opportunityCounter++,
+                name: name,
+                weights: weights,
+                scores: scores
+            };
+            opportunities.push(newOpportunity);
+            
+            const tableBody = document.getElementById('opportunities-table-body');
+            tableBody.insertAdjacentHTML('beforeend', createOpportunityRow(newOpportunity));
+            
+            // Scroll to the new row with smooth animation
+            setTimeout(() => {
+                const newRow = document.getElementById(`opp_row_${newOpportunity.id}`);
+                if (newRow) {
+                    newRow.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    // Highlight the new row briefly
+                    newRow.style.backgroundColor = '#fef3c7';
+                    setTimeout(() => {
+                        newRow.style.backgroundColor = '';
+                    }, 1000);
+                }
+            }, 100);
+            
+            // If we are in the results view, recalculate
+            if (!document.getElementById('results-section').classList.contains('hidden')) {
+                calculateScores();
+            }
+        }
+
+        /**
+         * Removes an opportunity from the data model and the UI.
+         */
+        function removeOpportunity(id) {
+            opportunities = opportunities.filter(opp => opp.id !== id);
+            const row = document.getElementById(`opp_row_${id}`);
+            if (row) {
+                row.remove();
+            }
+            if (!document.getElementById('results-section').classList.contains('hidden')) {
+                calculateScores();
+            }
+        }
+
+        /**
+         * Updates the name of an opportunity in the data model.
+         */
+        function updateOpportunityName(id, value) {
+            const opp = opportunities.find(o => o.id === id);
+            if (opp) {
+                opp.name = value;
+            }
+        }
+
+        /**
+         * Updates a specific W or S value for an opportunity in the data model and UI.
+         * @param {number} id - Opportunity ID
+         * @param {string} category - 'weights' or 'scores'
+         * @param {string} field - e.g., 'w_skill' or 's_skill'
+         * @param {string} value - The new value (as string from range input)
+         */
+        function updateOpportunityValue(id, category, field, value) {
+            const opp = opportunities.find(o => o.id === id);
+            if (opp) {
+                opp[category][field] = parseInt(value);
+                // Update the display span next to the slider
+                const displayId = `score_display_${id}_${field}`;
+                const scoreDisplay = document.getElementById(displayId);
+                if (scoreDisplay) {
+                    scoreDisplay.textContent = value;
+                }
+                
+                // Update live score preview
+                updateLiveScore(id);
+            }
+        }
+        
+        /**
+         * Updates the live score preview for an opportunity
+         * @param {number} id - Opportunity ID
+         */
+        function updateLiveScore(id) {
+            const opp = opportunities.find(o => o.id === id);
+            if (!opp) return;
+            
+            const currentScore = calculateOpportunityScore(opp);
+            const scoreCategory = getScoreCategory(currentScore);
+            const percentage = (currentScore / 200) * 100;
+            
+            // Update score badge
+            const scoreBadge = document.getElementById(`live_score_${id}`);
+            if (scoreBadge) {
+                scoreBadge.textContent = currentScore;
+                scoreBadge.className = `score-preview ${scoreCategory} px-2 py-1 rounded-full text-xs font-bold shadow-md`;
+            }
+            
+            // Update progress bar
+            const progressBar = document.getElementById(`score_progress_${id}`);
+            if (progressBar) {
+                progressBar.style.width = `${percentage}%`;
+            }
+        }
+
+        /**
+         * Main function to gather data, calculate scores, and render the results.
+         */
+        function calculateScores() {
+            if (opportunities.length === 0) {
+                 showUserMessage("Please add at least one opportunity to calculate scores.", "alert");
+                 return;
+            }
+            
+            // 1. Calculate scores for all opportunities
+            const results = opportunities.map(opp => ({
+                name: opp.name,
+                id: opp.id,
+                totalScore: calculateOpportunityScore(opp)
+            }));
+
+            // 2. Sort results by score (highest first)
+            results.sort((a, b) => b.totalScore - a.totalScore);
+
+            // 3. Render results with enhanced visuals
+            const resultsBody = document.getElementById('results-table-body');
+            const maxScore = Math.max(...results.map(r => r.totalScore));
+            
+            resultsBody.innerHTML = results.map((result, index) => {
+                const opp = opportunities.find(o => o.id === result.id);
+                const scoreCategory = getScoreCategory(result.totalScore);
+                const percentage = maxScore > 0 ? (result.totalScore / maxScore) * 100 : 0;
+                const isTop = index === 0;
+                
+                // Calculate score breakdown
+                const breakdown = opp ? {
+                    skill: opp.weights.w_skill * opp.scores.s_skill,
+                    time: opp.weights.w_time * opp.scores.s_time,
+                    interest: opp.weights.w_interest * opp.scores.s_interest,
+                    risk: opp.weights.w_risk * opp.scores.s_risk
+                } : null;
+                
+                return `
+                    <tr class="${isTop ? 'top-opportunity bg-gradient-to-r from-green-50 to-emerald-50 font-bold text-green-800 border-2 border-green-300' : 'text-gray-700 hover:bg-gray-50'} transition-all duration-300">
+                        <td class="px-4 py-4 whitespace-nowrap">
+                            <div class="flex items-center space-x-2">
+                                ${isTop ? '<span class="text-2xl">🏆</span>' : ''}
+                                <span class="text-lg font-bold ${isTop ? 'text-green-700' : 'text-gray-500'}">${index + 1}</span>
+                            </div>
+                        </td>
+                        <td class="px-4 py-4">
+                            <div class="font-semibold text-gray-900">${result.name}</div>
+                            ${breakdown ? `
+                                <div class="mt-2 text-xs text-gray-500 space-y-1">
+                                    <div class="flex justify-between">
+                                        <span>Skill:</span> <span class="font-medium">${breakdown.skill}</span>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <span>Time:</span> <span class="font-medium">${breakdown.time}</span>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <span>Interest:</span> <span class="font-medium">${breakdown.interest}</span>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <span>Risk:</span> <span class="font-medium">${breakdown.risk}</span>
+                                    </div>
+                                </div>
+                            ` : ''}
+                        </td>
+                        <td class="px-4 py-4">
+                            <div class="flex flex-col items-end space-y-2">
+                                <span class="text-2xl font-extrabold ${isTop ? 'text-green-700' : 'text-gray-700'}">${result.totalScore}</span>
+                                <div class="w-32 bg-gray-200 rounded-full h-3 overflow-hidden">
+                                    <div class="score-progress bg-gradient-to-r ${isTop ? 'from-green-500 to-emerald-500' : 'from-indigo-500 to-teal-500'}" 
+                                         style="width: ${percentage}%"></div>
+                                </div>
+                                <span class="text-xs text-gray-500">${percentage.toFixed(1)}% of top</span>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+
+            // 4. Ensure the results section is visible with smooth transition
+            const resultsSection = document.getElementById('results-section');
+            if (resultsSection.classList.contains('hidden')) {
+                resultsSection.classList.remove('hidden');
+                // Smooth scroll to results
+                setTimeout(() => {
+                    resultsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }, 100);
+            }
+            // Hide calculation section when showing results
+            document.getElementById('opportunities-section').classList.add('hidden');
+            document.getElementById('calculate-scores-btn').classList.add('hidden');
+            document.getElementById('intro-section').classList.add('hidden'); 
+        }
+
+        /**
+         * Toggles the UI state between editing and results.
+         */
+        function toggleView() {
+            const resultsSection = document.getElementById('results-section');
+
+            if (resultsSection.classList.contains('hidden')) {
+                // If results are hidden, calculate and switch to results
+                calculateScores();
+            } else {
+                // If results are visible, switch back to edit mode
+                resultsSection.classList.add('hidden');
+                document.getElementById('opportunities-section').classList.remove('hidden');
+                document.getElementById('calculate-scores-btn').classList.remove('hidden');
+                document.getElementById('intro-section').classList.remove('hidden');
+            }
+        }
+
+        /**
+         * Custom non-blocking message box (replaces alert()).
+         */
+        function showUserMessage(message, type) {
+            let messageDiv = document.getElementById('user-message-box');
+            if (!messageDiv) {
+                messageDiv = document.createElement('div');
+                messageDiv.id = 'user-message-box';
+                messageDiv.className = 'fixed top-0 left-1/2 transform -translate-x-1/2 mt-4 px-6 py-3 rounded-lg shadow-lg text-white font-semibold z-50 transition-all duration-300';
+                document.body.appendChild(messageDiv);
+            }
+
+            messageDiv.textContent = message;
+            messageDiv.className = messageDiv.className.replace(/bg-(red|blue|green)-500/g, ''); 
+            
+            if (type === 'alert') {
+                messageDiv.classList.add('bg-red-500');
+            } else {
+                messageDiv.classList.add('bg-blue-500');
+            }
+
+            messageDiv.style.opacity = '1';
+            setTimeout(() => {
+                messageDiv.style.opacity = '0';
+            }, 3000); 
+        }
+
+        // --- Event Listeners and Initial Setup ---
+
+        document.getElementById('add-opportunity-btn').addEventListener('click', () => {
+            const lastOpp = opportunities[opportunities.length - 1];
+            if (lastOpp && lastOpp.name.trim() === 'New Opportunity') {
+                 showUserMessage("Please rename your current opportunity before adding a new one.", "alert");
+                 return;
+            }
+            addOpportunity();
+        });
+        
+        document.getElementById('re-score-btn').addEventListener('click', toggleView);
+        document.getElementById('calculate-scores-btn').addEventListener('click', toggleView);
+
+
+        // Initial population of sample data (O1-O4) using dynamic W/S pairs
+        function initializeApp() {
+            // Freelance Writing: Skill is CRUCIAL (W=5) and score is HIGH (S=9)
+            addOpportunity('Freelance Writing', 
+                { w_skill: 5, w_time: 3, w_interest: 4, w_risk: 2 }, 
+                { s_skill: 9, s_time: 7, s_interest: 8, s_risk: 9 }
+            );
+            // E-commerce: Time commitment is HIGH (W=5)
+            addOpportunity('E-commerce (Dropshipping)', 
+                { w_skill: 2, w_time: 5, w_interest: 3, w_risk: 4 }, 
+                { s_skill: 3, s_time: 5, s_interest: 6, s_risk: 5 }
+            );
+            // Investing: Time is IRRELEVANT (W=1), Risk is CRUCIAL (W=5)
+            addOpportunity('Investing (Index Funds)', 
+                { w_skill: 3, w_time: 1, w_interest: 2, w_risk: 5 }, 
+                { s_skill: 2, s_time: 10, s_interest: 4, s_risk: 10 }
+            );
+            // Local Pet Sitting: Interest is CRUCIAL (W=5)
+            addOpportunity('Local Pet Sitting Service', 
+                { w_skill: 4, w_time: 5, w_interest: 5, w_risk: 1 }, 
+                { s_skill: 10, s_time: 6, s_interest: 10, s_risk: 9 }
+            );
+        }
+
+        // Details toggle animation
+        document.addEventListener('DOMContentLoaded', () => {
+            const details = document.querySelector('details');
+            if (details) {
+                const icon = details.querySelector('.details-icon');
+                if (icon) {
+                    details.addEventListener('toggle', () => {
+                        if (details.open) {
+                            icon.classList.add('rotate-180');
+                        } else {
+                            icon.classList.remove('rotate-180');
+                        }
+                    });
+                }
+            }
+        });
+
+        window.onload = initializeApp;
+
+    </script>
+</body>
+</html>
